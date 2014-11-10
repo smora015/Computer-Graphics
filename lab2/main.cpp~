@@ -1,0 +1,242 @@
+// Name: Sergio Morales
+// Quarter, Year: Fall 2014
+// Lab: 2
+//
+// This file is to be modified by the student.
+// main.cpp
+////////////////////////////////////////////////////////////
+
+#include <GL/glut.h>
+#include <iostream>
+#include <math.h>
+#include "point2d.h"
+
+using namespace std;
+
+const int WINDOW_WIDTH = 800;
+const int WINDOW_HEIGHT = 800;
+
+// Global vars used for constructing Bezier curves
+bool clicked = false;
+Point2D a, b;
+
+// ############################################# //
+// ########## Function Declarations ############ //
+// ############################################# //
+
+// Renders a quad at cell (x, y) with dimensions CELL_LENGTH
+void renderPixel(int x, int y, float r, float g, float b);
+
+// Renders line based on incremental DDA
+void render_line( float x0, float y0, float x1, float y1);
+
+// Returns appropriate window coordinates
+Point2D GLScreenToWindowCoordinates( const Point2D & p );
+
+// Output functon to OpenGL Buffer
+void GL_render();
+
+// Mouse even handler
+void GL_mouse(int button, int state, int x, int y);
+
+//Initializes OpenGL attributes
+void GLInit(int* argc, char** argv);
+
+
+
+int main( int argc, char** argv )
+{
+  GLInit(&argc, argv);
+  glutMainLoop();
+}
+
+
+// ############################################# //
+// ########## Function Definitions ############# //
+// ############################################# //
+void GLInit(int* argc, char** argv)
+{
+  glutInit(argc, argv);
+  glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
+  glutInitWindowSize(WINDOW_WIDTH, WINDOW_HEIGHT);
+
+  // Create window
+  glutCreateWindow("CS 130 - Lab 2 <Sergio Morales>");
+
+  // Register rendering function
+  glutDisplayFunc( GL_render );
+	
+  // NEW: Register mouse event function
+  glutMouseFunc( GL_mouse );
+
+
+  // The default view coordinates is (-1.0, -1.0) bottom left & (1.0, 1.0) top right.
+  // For the purposes of this lab, this is set to the number of pixels
+  // in each dimension.
+  glMatrixMode(GL_PROJECTION_MATRIX);
+  glOrtho(0, WINDOW_WIDTH, 0, WINDOW_HEIGHT, -1, 1);
+}
+
+
+void GL_mouse(int button, int state, int x, int y){
+
+
+	// Debug states, buttons, and coordinates
+	if( button == GLUT_LEFT_BUTTON && state == GLUT_UP )
+		cout << "LEFT BUTTON! AT: " << x << " " << y << endl;
+	else if( button == GLUT_RIGHT_BUTTON && state == GLUT_UP )
+		cout << "RIGHT BUTTON! AT:" << x << " " << y  << endl;
+	else if( button == GLUT_MIDDLE_BUTTON && state == GLUT_UP )
+		cout << "MIDDLE BUTTON! AT:" << x << " " << y  << endl;
+	
+	if( button == GLUT_LEFT_BUTTON && state == GLUT_UP )
+	{
+		if( clicked )
+		{
+			cout << "Clicked twice..." << endl;
+
+			// Already clicked twice
+			clicked = false;
+
+			// Get second coordinate
+			b = Point2D( x, y );
+
+
+			// Render the screen again
+			glutPostRedisplay();
+		  	Point2D tempa = GLScreenToWindowCoordinates( a );
+  			Point2D tempb = GLScreenToWindowCoordinates( b ); 
+
+			cout << "Rendering " << tempa.x << " " << tempa.y << " " << tempb.x << " " << tempb.y << endl;			
+	
+		}
+		else
+		{
+			cout << "Clicked once..." << endl;
+
+			// Clicked once
+			clicked = true;
+			
+			// Get first coordinate
+			a = Point2D( x, y);
+			
+		}
+	}	
+
+	
+	return;
+} 
+
+Point2D GLScreenToWindowCoordinates( const Point2D & p )
+{
+	GLdouble model[16];
+	glGetDoublev( GL_MODELVIEW_MATRIX, model );
+
+	GLdouble projection[16];
+	glGetDoublev( GL_PROJECTION_MATRIX, projection );
+	
+	GLint viewport[4];
+	glGetIntegerv( GL_VIEWPORT, viewport );
+	
+	Point2D converted;
+	GLdouble temp;
+	
+	gluUnProject( p.x, viewport[3] - p.y, 0, model, projection, viewport, &converted.x, &converted.y, &temp );
+	
+	return converted;
+}
+
+void GL_render()
+{
+  glClear( GL_COLOR_BUFFER_BIT );
+
+  Point2D tempa = GLScreenToWindowCoordinates( a );
+  Point2D tempb = GLScreenToWindowCoordinates( b ); 
+
+  render_line( tempa.x, tempa.y, tempb.x, tempb.y );		 
+  
+  glutSwapBuffers();
+}
+
+void renderPixel(int x, int y, float r, float g, float b)
+{
+  glBegin( GL_POINTS );
+
+  // Render a point based off a vertex
+  glVertex2f( x, y);
+
+  glEnd();
+}
+
+void render_line( float x0, float y0, float x1, float y1)
+{
+  // Swap endpoints to make rendering go from left -> right
+  if( x0 > x1 )
+  {
+  	float temp = x0;
+  	x0 = x1;
+  	x1 = temp;
+  	
+  	temp = y0;
+  	y0 = y1;
+  	y1 = temp;
+  }
+  
+
+  // Declare variables
+  float dy = (y1 - y0); // Change in y
+  float dx = (x1 - x0); // Change in x
+  float m = 0;
+
+  // Find slope
+  if( dx != 0 )
+      m = dy / dx;
+
+  float x = x0, y = y0; // Set initial x and y positions
+ 
+  if( m > 1 ) // Case 1: Slope > 1 (steep lines)
+  {
+    while( y != y1)
+    {
+      renderPixel(  (int) round( x ),  (int) y, 1, 0, 0 );
+      x +=  1/m; // Since the slope is greater than 1, we move x at a rate of 1/slope
+      y += (dy < 0) ? -1 : 1; // Increment or decrement y based on direction
+      
+      cout << "x: " << x << " y: " << y << endl;
+    }
+  }
+  else if( m < -1 ) // Case 2: Slope < -1 (steep lines)
+  {
+    while( y != y1)
+    {
+      renderPixel(  (int) round( x ),  (int) y, 1, 0, 0 );
+      x -=  1/m; // Since the slope is less than 1, we move x at a rate of -1/slope
+      y += (dy < 0) ? -1 : 1; // Increment or decrement y based on direction
+      
+      cout << "x: " << x << " y: " << y << endl;
+    }
+  }
+  else if ( m == 0 ) // Case 3: Slope is 0. Horizontal or Vertical lines
+  {
+    while( x != x1 || y != y1 )
+    {
+      renderPixel(  (int) round( x ),  (int) round( y ), 1, 1, 1);
+      if( y != y1 )
+		y += (dy < 0) ? -1 : 1;
+      if( x != x1 )
+		x += (dx < 0) ? -1 : 1;
+    }
+  }
+  else if( m > -1 && m <= 1) // Case 4:  -1 < Slope <= 1. Normal diagonal lines
+  {
+    while( x != x1 )
+    {
+      renderPixel(  (int) x,  (int) round( y ), 1, 0, 0 );
+      y += m;
+
+      x += (dx < 0) ? -1 : 1;
+    }
+  }
+}
+
+
