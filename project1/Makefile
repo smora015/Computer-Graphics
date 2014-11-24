@@ -11,7 +11,7 @@ CC = g++
 INCLUDE =
 
 ## Object files and executables
-MAIN_OUT = a.out
+MAIN_OUT = assn1.out
 
 ## Requirements for each command
 MAIN_REQS = main.cpp
