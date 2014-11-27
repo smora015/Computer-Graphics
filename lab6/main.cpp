@@ -1,6 +1,6 @@
-// Name:
-// Quarter, Year:
-// Lab:
+// Name: Sergio Morales
+// Quarter, Year: Fall 2014
+// Lab: Lab 6
 //
 // This file is to be modified by the student.
 // main.cpp
@@ -117,18 +117,27 @@ struct Particle
 	/* Complete this function */
 	bool isExpired() const
 	{
-		return true;
+	  // If timer reaches a certain time, it is expired
+	  if( timer > 10)
+	    return true; 
+	  else
+	    return false;
 	}
 
 	/* Complete this function */
 	void update(float elapsed)
 	{
+	  vel += acc * elapsed;
+	  pos += vel * elapsed;
+	  
+	  // Make sure we update timer as well
+	  --timer;	
 	}
 
 	void render()
 	{
-		glColor4f(col.r, col.g, col.b, col.a);
-		glVertex3f(pos.x, pos.y, pos.z);
+	  glColor4f(col.r, col.g, col.b, col.a);
+	  glVertex3f(pos.x, pos.y, pos.z);
 	}
 };
 
@@ -146,6 +155,31 @@ struct ParticleSystem
 	/* Complete this function */
 	void init(const Vector3 & spawnPoint)
 	{
+	  // Vectors used to create new particle
+	  Vector3 velocity( 0, 5, 0);
+	  Vector3 acceleration( 0, 0, 0);
+	  Color3d colors( 0, 0, 1);
+	  
+	  for(int i = 0; i < 1500; ++i)
+	    {
+	      // Get angle for velocity
+	      float theta = randFloat();
+	      
+	      // Get random velocity
+	      velocity = Vector3( randFloat(-50*cos(theta), 50 * sin(theta)),
+				  randFloat(-50*cos(theta), 50 * sin(theta)),
+				  randFloat(0,10) );
+
+	      // Get random colors for each particle
+	      colors = Color3d( randFloat(0,1), randFloat(0,.2), randFloat(0,1) );
+      
+	      // Determine acceleration in one direction
+	      acceleration.y = -10;
+	      
+	      // Push back newly created particle in vector
+	      particles.push_back( Particle( spawnPoint, velocity, acceleration, colors, 10.0) );	
+	    }
+		
 	}
 
 	/* Returns true if there are no particles present */
@@ -189,6 +223,22 @@ struct ParticleSystem
 
 std::list<ParticleSystem> psystems;
 
+void mouse(int btn, int state, int x, int y)
+{
+	Vector3 tmp;
+	switch (btn)
+	{
+    		case GLUT_LEFT_BUTTON:
+		if(state == GLUT_DOWN)
+		{
+			tmp.x = x;
+			tmp.y = 800-y;
+			psystems.push_back(ParticleSystem(tmp));	
+		}
+		break;
+	}
+}
+
 // Number of seconds between frame updates
 const float FRAME_PERIOD = 0.25;
 
@@ -208,7 +258,7 @@ void GLInit(int* argc, char** argv)
 	glutInit(argc, argv);
 	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
 	glutInitWindowSize(WINDOW_WIDTH, WINDOW_HEIGHT);
-	glutCreateWindow("Lab 9 - <Insert Name Here>");
+	glutCreateWindow("Lab 6 - Sergio Morales");
 	glutDisplayFunc(GLrender);
 	glutIdleFunc(GLupdate);
 	glClearColor(1.0f, 1.0f, 1.0f, 0.0f);
@@ -218,6 +268,7 @@ void GLInit(int* argc, char** argv)
 int main(int argc, char** argv)
 {
 	GLInit(&argc, argv);
+	glutMouseFunc(mouse);
 	glutMainLoop();
 	return 0;
 }
@@ -270,4 +321,3 @@ void GLrender()
 	glFlush();	
 	glutSwapBuffers();
 }
-
