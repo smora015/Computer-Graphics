@@ -1,6 +1,6 @@
 // Name: Sergio Morales
 // Quarter, Year: Fall 2014
-// Project: 1
+// Project: 2
 //
 // This file is to be modified by the student.
 // main.cpp
