@@ -1,4 +1,4 @@
-// Name: Sergio Morales
+phong flat shading// Name: Sergio Morales
 // Quarter, Year: Fall 2014
 // Project: 1
 //

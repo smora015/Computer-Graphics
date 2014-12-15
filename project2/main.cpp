@@ -19,9 +19,19 @@ using namespace std;
 const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 800;
 
+// Pan and Zoom for interface
 #define PAN_LEFT_RIGHT 0   // Parameter values to specify type of panning
 #define PAN_UP_DOWN 1      // ""
 #define DEPTH_INIT -10000  // This is our initial z-value
+
+// Phong Illumination Model
+#define Ka .3  // Coefficients
+#define Kd .6
+#define Ks .3
+
+#define La .7  // Intensities
+#define Ld .6
+#define Ls .4
 
 /// ------------------------- Struct/Type Definitions ---------------------///
 typedef struct clr // Holds different triangle colors
@@ -46,7 +56,7 @@ typedef struct Triangle
              : p1(p11), p2(p22), p3(p33), Color( colorr ) {}
 } Triangle;
 
-struct Ray
+typedef struct Ray
 {
     Point3D origin;
     Point3D direction;
@@ -59,7 +69,7 @@ struct Ray
         if (mag > 0.0) {d = dir;}
         direction = d;
     }
-};
+} Ray;
 
 /// --------------------------- Global Variables -------------------------///
 clr colors[10] = { clr(.5, .1, .1), clr(.1, .5, .1), clr(.1, .1, .5), 
@@ -73,6 +83,9 @@ vector< Point2D > points;           // Container for 2D points. Used for scan co
 vector< Point3D > cartesian_points; // Container of 3D points. Raw point data
 vector< Triangle > triangles;       // Container of 3 sets of 3D points, or a triangle. Used to get points array data
 unsigned char color_index = 0;          // Helps cycle through different colors for triangles
+Point3D lights[5] = {Point3D( 0, 0, -.5 ), Point3D( 1, 5, -2 ), Point3D( 0, 0, -1), Point3D( 1, 1, -1),
+		     Point3D( 0, -1, 1) };
+
 
 /// -------------------------- Function Declarations --------------------///
 // Grab all model information
@@ -324,16 +337,42 @@ void GL_render()
 	
 	if( which_triangle >= 0 )
 	{
-	  // We now find the illumination
-	  clr illumination = clr();
+	  Point3D viewer(i, j, 1.0);
 	  
+	  // We now find the illumination
+	  float sum = 0;
+
 	  // For all light sources
+	  for( int x = 0; x < 5; ++x )
+	  {
+	    // We determine if there is a shadow. If so, only add ambient light
+	    
+	    // If there isn't, add diffuse and specular as well
+	    
+	    // L = kd * Ld * cos(theta) + ks * Ls * cos( phi ) + ka * La
+	    // cos( theta ) = N * l / (||N|| || L || ), where N = normal vector, L = light
+	    Point3D p1 = cartesian_points.at( triangles.at( which_triangle ).p1 );  // Get x, y, z
+	    Point3D p2 = cartesian_points.at( triangles.at( which_triangle ).p2 );
+	    Point3D p3 = cartesian_points.at( triangles.at( which_triangle ).p3 );
+	    
+	    Point3D vector1 = Point3D(p1.x - p2.x, p1.y - p2.y, p1.z - p2.z);       // Get 2 vectors from pts
+	    Point3D vector2 = Point3D(p1.x - p3.x, p1.y - p3.y, p1.z - p3.z);
+	    
+	    Point3D normal = vector1.cross( vector2 );                        // Find normal from cross
+	    
+	    float diffuse = (normal.dot( lights[x] ) / ( normal.magnitude() * lights[x].magnitude() ))*Kd*Ld;
+	    
+	    Point3D reflector = normal * 2 * ( normal.dot( (lights[x] / lights[x].magnitude()) ) ) - lights[x];
+	    float specular = (reflector.dot( viewer ) / ( reflector.magnitude() * viewer.magnitude() ))*Ks*Ls;
+	    
+	    float ambient = Ka * La;
+	    
+	    sum += diffuse + specular + ambient;
 
-	  // We determine if there is a shadow. If so, only add ambient light
+	  }
+	    clr colour = triangles.at( which_triangle ).Color;	  	  
+	    renderPixel( i, 800 - j, colour.R*sum, colour.G*sum, colour.B*sum);
 
-	  // If there isn't, add diffuse and specular as well
-	  clr colour = triangles.at( which_triangle ).Color;
-	  renderPixel( i, 800 - j, colour.R, colour.G, colour.B);
 	}
       
       }
