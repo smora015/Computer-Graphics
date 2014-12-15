@@ -224,7 +224,7 @@ void GLInit(int* argc, char** argv)
 
 
 // Finds the determinant of a matrix made up of 3 vectors (3x3)
-float tri_det( Point3D v1, Point3D v2, Point3D v3 )
+float tri_det( const Point3D &v1, const Point3D &v2, const Point3D &v3 )
 {
   return ( ((v1.x * v2.y * v3.z) + (v2.x * v3.y * v1.z) + (v3.x * v1.y * v2.z )) - // Lower diaganoal
 	   ((v1.z * v2.y * v3.x) + (v2.z * v3.y * v1.x) + (v3.z * v1.y * v2.x)));  // Upper diagonal
@@ -241,21 +241,30 @@ bool rayIntersectsTriangle(const Ray& ray, const Triangle& triangle, float* t )
   Point3D b = cartesian_points[ triangle.p2 ]; // Second point
   Point3D c = cartesian_points[ triangle.p3 ]; // Third point
   
-  Point3D Eb = ( b - a );
-  Point3D Ec = ( c - a );
+
+  Point3D Eb = ( Point3D(b.x - a.x, b.y - a.y, b.z - a.z) );
+  Point3D Ec = ( Point3D(c.x - a.x, c.y - a.y, c.z - a.z) );
 
   // Find t, beta, and gamma
   // t = det(T) / det(A), where A, B, and C are matrices populated with Eb, Ec, and ray.
   // beta = det( B ) / det( A ) and gamma = det( C ) / det( A )
-  float det_a = tri_det( Eb * -1, Ec * -1, (ray.direction) );
+  float det_a = tri_det( Point3D(-Eb.x, -Eb.y, -Eb.z), 
+			 Point3D(-Ec.x, -Ec.y, -Ec.z), 
+			 (ray.direction) );
 
-  *t = tri_det( Eb * -1, Ec * -1, (a - ray.origin) ) / det_a;            // det(T) / det(a)
+  *t = tri_det( Point3D(-Eb.x, -Eb.y, -Eb.z), 
+		Point3D(-Ec.x, -Ec.y, -Ec.z), 
+		Point3D(a.x - ray.origin.x, a.y - ray.origin.y, a.z - ray.origin.z ) ) / det_a;            // det(T) / det(a)
 
   // Determine if we intersect using all 3 values
   if( *t > 0 )
   {
-    float beta = tri_det( (a - ray.origin), Ec * -1, ray.direction ) / det_a;   // det(B) / dat(a)
-    float gamma = tri_det( Eb * -1, (ray.origin - a), ray.direction ) / det_a;  // det(C) / det(a)
+    float beta = tri_det( Point3D(a.x - ray.origin.x, a.y - ray.origin.y, a.z - ray.origin.z), 
+			  Point3D(-Ec.x, -Ec.y, -Ec.z), 
+			  ray.direction ) / det_a;       // det(B) / dat(a)
+    float gamma = tri_det( Point3D(-Eb.x, -Eb.y, -Eb.z), 
+			   Point3D(a.x - ray.origin.x, a.y - ray.origin.y, a.z - ray.origin.z), 
+			   ray.direction ) / det_a;  // det(C) / det(a)
 
     if( (beta >= 0) && (gamma >= 0) )
     {
