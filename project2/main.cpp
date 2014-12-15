@@ -25,13 +25,13 @@ const int WINDOW_HEIGHT = 800;
 #define DEPTH_INIT -10000  // This is our initial z-value
 
 // Phong Illumination Model
-#define Ka .3  // Coefficients
-#define Kd .6
-#define Ks .3
+#define Ka .1//.1  // Coefficients
+#define Kd .3//.7
+#define Ks .7// 1
 
-#define La .7  // Intensities
-#define Ld .6
-#define Ls .4
+#define La .4//.2  // Intensities
+#define Ld .7//.8
+#define Ls .9//.1
 
 /// ------------------------- Struct/Type Definitions ---------------------///
 typedef struct clr // Holds different triangle colors
@@ -72,19 +72,11 @@ typedef struct Ray
 } Ray;
 
 /// --------------------------- Global Variables -------------------------///
-clr colors[10] = { clr(.5, .1, .1), clr(.1, .5, .1), clr(.1, .1, .5), 
-		   clr(.5, .75, 1), clr(.3, .2, .6), clr(.3, .5, .6), 
-		   clr(.5, .2, .5), clr(.5, .75, 0), clr(.5, .8, .1), 
-		   clr(0, .75, 3) }; // Array of 10 colors to cycle through
-vector< vector< double > > zbuffer( WINDOW_WIDTH, vector<double>( WINDOW_HEIGHT, DEPTH_INIT ) ); // Initialize our zbuffer to 800x800 points at DEPTH_INIT
-
-bool WIREFRAME_TOGGLE = false;      // Toggles wireframe view on/off by pressing '0'
 vector< Point2D > points;           // Container for 2D points. Used for scan conversion
 vector< Point3D > cartesian_points; // Container of 3D points. Raw point data
 vector< Triangle > triangles;       // Container of 3 sets of 3D points, or a triangle. Used to get points array data
-unsigned char color_index = 0;          // Helps cycle through different colors for triangles
-Point3D lights[5] = {Point3D( 0, 0, -.5 ), Point3D( 1, 5, -2 ), Point3D( 0, 0, -1), Point3D( 1, 1, -1),
-		     Point3D( 0, -1, 1) };
+Point3D lights[5]  = {Point3D( 200, 200, -5/*-.5, -.5, -.5*/ ), Point3D( 1, -5, -2 ), Point3D( .3, .5, -1), Point3D( 1, 1, -1),
+		      Point3D( 1, -1, 1) };
 
 
 /// -------------------------- Function Declarations --------------------///
@@ -124,31 +116,13 @@ void pan_model( int mode, double amount );
 // Zooms the model in or out
 void zoom_model( double amount );
 
-// Determines if rendering should occur for x,y at a certain z value
-bool update_zbuffer( double x, double y, int number );
-
-// Determines max y value out of 3 points.
-// @param: number The starting point in our points array for the 3 vertices.
-int ymax( int number );
-
-// Determines minimum y value out of 3 points
-// @param: number The starting point in our points array for the 3 vertices
-int ymin( int number );
-
-// Renders a triangular polygon
-// @param: number The starting point in our points array for the 3 vertices
-void renderTPolygon( int number );
-
 // Renders a quad at cell (x, y) with dimensions CELL_LENGTH
 void renderPixel(int x, int y, float r, float g, float b);
-
-// Renders line based on incremental DDA
-void renderLine( int x0, int y0, int x1, int y1);
 
 
 /// ----------------------- Main --------------------------------------///
 int main( int argc, char** argv )
-{
+{	
   if( argc < 2)
   {
     cerr << "Error: File not specified!" << endl; 
@@ -192,18 +166,17 @@ void parse_model( string file )
         model >> y;
         model >> z;
         
-        triangles.push_back( Triangle( x, y, z, colors[ (color_index++) % 10 ]) );
+        triangles.push_back( Triangle( x, y, z, clr(1,1,1)/*colors[ (color_index++) % 10 ]*/) );
     }
     
     // Display usage information
-    cout << "============== Z-buffer Model Rendering ==============\n"
+    cout << "============== Flat/Smooth Shaded Rendering ==============\n"
          << "                   ..Controls.. \n"
          << " Rotate:    'right' -> RIGHT  | 'left' -> LEFT\n"
          << " Pan:       'w'     -> UP     | 'a' -> LEFT \n"
          << "            's'     -> DOWN   | 'd' -> RIGHT \n"
          << " Zoom:      '-'     -> OUT    | '+' -> IN \n"
-         << " Wireframe: '0'     -> ON/OFF \n"
-         << "======================================================"
+         << "=========================================================="
          << endl;
          
     model.close();
@@ -291,9 +264,8 @@ bool rayIntersectsTriangle(const Ray& ray, const Triangle& triangle, float* t )
 }
 
 //Returns -1 if no sphere should appear in pixel, otherwise returns index of sphere.
-int pixelOn(float pixel_x, float pixel_y)
+int pixelOn( Ray current )
 {
-    Ray current(Point3D(pixel_x, pixel_y, 0.0), Point3D(0.0, 0.0, 1.0));
     int num_triangles = (int) triangles.size();
     float min = -1.0;
     int min_i = -1;
@@ -325,88 +297,81 @@ void GL_render()
 {
     glClear( GL_COLOR_BUFFER_BIT );
     
-
     // For each pixel,
     for( int i = 0; i < WINDOW_WIDTH; ++i )
     {
       for( int j = 0; j < WINDOW_HEIGHT; ++j )
       {
-	//cout << i << " " << j << " ";
-	// Check if there is an intersection between ray and a triangle
-	int which_triangle = pixelOn( i, 800 - j );
+		// Check if there is an intersection between ray and a triangle
+		int which_triangle = pixelOn( Ray( Point3D( i, 800 - j, 0), Point3D(0, 0, 1) ) );
+ 		Point3D viewer(i, 800 - j, 1.0);
 	
-	if( which_triangle >= 0 )
-	{
-	  Point3D viewer(i, j, 1.0);
+		if( which_triangle >= 0 )
+		{	  
+		  // We now find the illumination
+		  float sum = 0;
 	  
-	  // We now find the illumination
-	  float sum = 0;
+		  // For all light sources
+		  for( int x = 0; x < 1; ++x )
+		  {
+		    // We determine if there is a shadow. If so, only add ambient light
+			int shadow = pixelOn( Ray( Point3D( i, 800 - j, 0), Point3D(lights[x].x - i, lights[x].y, lights[x].z - 0) ) );
+		    
+		    float diffuse = 0, specular = 0, ambient = 0;
+		    // If there isn't, add diffuse and specular as well
+		    if( shadow < 0 )
+		    {
+		      // Phong Illumination Model
+		      // L = kd * Ld * cos(theta) + ks * Ls * cos( phi ) + ka * La
+		      // cos( theta ) = N * l / (||N|| || L || ), where N = normal vector, L = light
+		    
+  		      // First we find the normal vector of that triangle
+		      Point3D p1 = cartesian_points.at( triangles.at( which_triangle ).p1 );  // Get x, y, z
+		      Point3D p2 = cartesian_points.at( triangles.at( which_triangle ).p2 );
+		      Point3D p3 = cartesian_points.at( triangles.at( which_triangle ).p3 );
+		    
+		      Point3D vector1 = Point3D(p1.x - p2.x, p1.y - p2.y, p1.z - p2.z);       // Get 2 vectors from pts
+		      Point3D vector2 = Point3D(p1.x - p3.x, p1.y - p3.y, p1.z - p3.z);
+		    
+		      Point3D normal = vector1.cross( vector2 );                        // Find normal from cross
+		    
+		      // Using the normal, we calculate the diffuse component as Kd * Ld * ( N * l )/(|N||L|)
+		      diffuse = (normal.dot( lights[x] ) / ( normal.magnitude() * lights[x].magnitude() ))*Kd*Ld;
+		    
+		      // We then find our specular component using the reflected vector from the light source
+		      Point3D reflector = normal * 2 * ( normal.dot( (lights[x] / lights[x].magnitude()) ) ) - lights[x];
+		      specular = (reflector.dot( viewer ) / ( reflector.magnitude() * viewer.magnitude() ))*Ks*Ls;
 
-	  // For all light sources
-	  for( int x = 0; x < 5; ++x )
-	  {
-	    // We determine if there is a shadow. If so, only add ambient light
-	    
-	    // If there isn't, add diffuse and specular as well
-	    
-	    // L = kd * Ld * cos(theta) + ks * Ls * cos( phi ) + ka * La
-	    // cos( theta ) = N * l / (||N|| || L || ), where N = normal vector, L = light
-	    Point3D p1 = cartesian_points.at( triangles.at( which_triangle ).p1 );  // Get x, y, z
-	    Point3D p2 = cartesian_points.at( triangles.at( which_triangle ).p2 );
-	    Point3D p3 = cartesian_points.at( triangles.at( which_triangle ).p3 );
-	    
-	    Point3D vector1 = Point3D(p1.x - p2.x, p1.y - p2.y, p1.z - p2.z);       // Get 2 vectors from pts
-	    Point3D vector2 = Point3D(p1.x - p3.x, p1.y - p3.y, p1.z - p3.z);
-	    
-	    Point3D normal = vector1.cross( vector2 );                        // Find normal from cross
-	    
-	    float diffuse = (normal.dot( lights[x] ) / ( normal.magnitude() * lights[x].magnitude() ))*Kd*Ld;
-	    
-	    Point3D reflector = normal * 2 * ( normal.dot( (lights[x] / lights[x].magnitude()) ) ) - lights[x];
-	    float specular = (reflector.dot( viewer ) / ( reflector.magnitude() * viewer.magnitude() ))*Ks*Ls;
-	    
-	    float ambient = Ka * La;
-	    
-	    sum += diffuse + specular + ambient;
+		      // Finally, the ambient component
+		      ambient = Ka * La;
 
-	  }
+		    }
+		    else
+		    {
+		      // Finally, the ambient component
+		      ambient = Ka * La;
+		    }
+		      // Find the total illumination
+		      sum += diffuse + specular + ambient;
+		    
+		  }
+	  
+	  	// After looping through all light sources, we then render the pixel
 	    clr colour = triangles.at( which_triangle ).Color;	  	  
-	    renderPixel( i, 800 - j, colour.R*sum, colour.G*sum, colour.B*sum);
+	    renderPixel( i, 800 - j,/*colour.R**/sum, /*colour.G**/sum, /*colour.B**/sum);
 
-	}
+		}
       
       }
     }
-
-    // Project 1 way of rendering triangles
-    /*// Traverse through points in all polygons
-    for( int i = 0; i < triangles.size(); ++i )
-    {
-        // Grab the 2D projected points and push them to points container
-        Point3D temp;
-        temp = cartesian_points[ triangles[i].p1 ]; // First point
-        points.push_back( Point2D( temp.x, temp.y ) );
-        
-        temp = cartesian_points[ triangles[i].p2 ]; // Second point
-        points.push_back( Point2D( temp.x, temp.y ) );
-        
-        temp = cartesian_points[ triangles[i].p3 ]; // Third point
-        points.push_back( Point2D( temp.x, temp.y ) );
-    }
-    
-    // Go through points container and output pixels
-    for( int i = 0; i < points.size()/3; ++i)
-    renderTPolygon(i); // Render triangle polygons, based on zbuffer depth as well*/
-    
+ 
     glutSwapBuffers();
 }
 
 void GL_spec_key( int key, int x, int y )
 {
-    // Clear points and zbuffer after rendering entire model
+    // Clear points after rendering entire model
     points.clear();
-    zbuffer.clear();
-    zbuffer = vector< vector<double> >( WINDOW_WIDTH, vector<double>( WINDOW_HEIGHT, DEPTH_INIT ) );
     
     if(key == GLUT_KEY_RIGHT) // Rotate along y-axis -->
     {
@@ -425,16 +390,10 @@ void GL_spec_key( int key, int x, int y )
 
 void GL_key( unsigned char key, int x, int y )
 {
-    // Clear zbuffer after rendering entire model
+    // Clear after rendering entire model
     points.clear();
-    zbuffer.clear();
-    zbuffer = vector< vector<double> >( WINDOW_WIDTH, vector<double>( WINDOW_HEIGHT, DEPTH_INIT ) );
-    
-    if( key == '0' )
-    {
-        WIREFRAME_TOGGLE = (WIREFRAME_TOGGLE ? false : true );
-    }
-    else if( key == '+' )
+     
+    if( key == '+' )
     {
         zoom_model( 1.2 );
         //cout << "Zooming in!" << endl;
@@ -554,329 +513,6 @@ void zoom_model( double amount )
         cartesian_points[i] += avg;
 }
 
-bool update_zbuffer( double x, double y, int number )
-{
-    // Get values of each 3D point
-    Point3D p1 = cartesian_points.at( triangles.at(number).p1 );
-    Point3D p2 = cartesian_points.at( triangles.at(number).p2 );
-    Point3D p3 = cartesian_points.at( triangles.at(number).p3 );
-    
-    // Get vectors in the plane
-    Point3D vector1 = p1-p2;
-    Point3D vector2 = p1-p3;
-    
-    // Find the vector normal to the plane
-    Point3D normal_plane = vector1.cross( vector2 );
-    double value_D = p1.x*normal_plane.x + p1.y*normal_plane.y + p1.z*normal_plane.z;
-    
-    // Find value of Z using calculated vectors in the plane
-    double z = ( value_D - x*normal_plane.x - y*normal_plane.y ) / normal_plane.z;
-    
-    // Update zbuffer if the point is closer than current
-    if( z > zbuffer.at( (unsigned int)abs(x) % 800 ).at( (unsigned int)abs(y) % 800 ) ||
-        zbuffer.at( (unsigned int)abs(x) % 800 ).at( (unsigned int)abs(y) % 800 ) == DEPTH_INIT )
-    {
-        // Update the point if its closer, then render it in our polygon render function
-        zbuffer.at( (unsigned int)abs(x) % 800 ).at( (unsigned int)abs(y) % 800 ) = z;
-        return true;
-    }
-
-    // Depth of z at this point is not closer than current value in buffer. Do not render
-    return false;
-}
-
-
-// ------ Triangle functions ------ //
-int ymax( int number ) // Determines max y value out of 3 points
-{
-    int max = number*3;
-    for(int i = number*3; i < number*3 + 3; ++i)
-    {
-        if( points[i].y >= points[max].y )
-        max = i;
-    }
-    
-    return max;
-}
-
-int ymin( int number ) // Determines minimum y value out of 3 points
-{
-    int min = number*3;
-    for(int i = number*3; i < number*3 + 3; ++i)
-    {
-        if( points[i].y <= points[min].y )
-        min = i;
-    }
-    return min;
-}
-
-// Finds mid y value out of 3 points, or returns false if not found
-bool find_ymid( Point2D & mid, Point2D y_min, Point2D y_max, int number)
-{
-    for( int i = number*3; i < number*3 + 3; ++i )
-    {
-        if( (points[i].y > y_min.y) && (points[i].y < y_max.y) )
-        {
-            mid = points[i];
-            return true;
-        }
-    }
-    return false;
-}
-
-// Renders a triangle using 3 points
-void renderTPolygon( int number )
-{
-    // Find min and max values for polygon points
-    int min = ymin( number );
-    int max = ymax( number );
-    Point2D y_min = points[min];
-    Point2D y_max = points[max];
-    
-    // Triangle check
-    if( y_min.y == y_max.y )
-    {
-        //cout << "Not a real triangle!" << endl;
-        return;
-    }
-    
-    Point2D mid;
-    if( find_ymid( mid, y_min, y_max, number ) ) // Case 1: Split triangle into 2
-    {
-        // Fetch Pnew.
-        double s = (y_max.x - y_min.x) / ( y_max.y - y_min.y );
-        double c = (y_min.x - s*y_min.y );
-        Point2D p_new( s*mid.y + c, mid.y );
-        
-        // Triangle one (using p_new, p_mid, and y_max )
-        double m_left = ( p_new.y - y_max.y ) / ( p_new.x - y_max.x);
-        double m_right = ( mid.y - y_max.y ) / (mid.x - y_max.x );
-        for ( int y = (int)mid.y; y < y_max.y; ++y)
-        {
-            // x = (1/m)*(y - b ) + x0
-            double x0 = (y - y_max.y) / m_right + y_max.x;
-            double x1 = (y - y_max.y) / m_left + y_max.x;
-            
-            // Swap x values if going in descending order
-            if( x0 > x1 )
-            {
-                double temp = x0;
-                x0 = x1;
-                x1 = temp;
-            }
-            
-            if( WIREFRAME_TOGGLE )
-            {
-                if( y == mid.y )
-                {
-                    // Draw horizontal line on triangle
-                    for ( int x = (int) x0; x < x1; ++x )
-                    {
-                        if( update_zbuffer(x, y, number) )
-                            renderPixel(x, y, colors[number % 10].R, colors[number % 10].G, colors[number % 10].B);
-                    }
-                }
-                else
-                {
-                    // Draw only the outside edges
-                    if( update_zbuffer((int)x0, y, number) )
-                        renderPixel((int)x0, y, colors[number % 10].R, colors[number % 10].G, colors[number % 10].B);
-                    if( update_zbuffer((int)x1, y, number) )
-                        renderPixel((int)x1, y, colors[number % 10].R, colors[number % 10].G, colors[number % 10].B);
-                }
-            }
-            else
-            {
-                // Render pixels, starting from left slope of the triangle, to the right slope.
-                for ( int x = (int) x0; x < x1; ++x )
-                {
-                    if( update_zbuffer(x, y, number) )
-                        renderPixel(x, y, colors[number % 10].R, colors[number % 10].G, colors[number % 10].B);
-                }
-            }
-        }
-        
-        
-        // Triangle two ( using pnew, pmid, pmin )
-        m_left = ( p_new.y - y_min.y ) / ( p_new.x - y_min.x );
-        m_right = ( mid.y - y_min.y ) / ( mid.x - y_min.x );
-        for ( int y = (int)y_min.y; y < mid.y; ++y)
-        {
-            // x = (1/m)*(y - b ) + x0
-            double x0 = (y - y_min.y) / m_left + y_min.x;
-            double x1 = (y - y_min.y) / m_right + y_min.x;
-
-            // Swap x values if going in descending order
-            if( x0 > x1 )
-            {
-                double temp = x0;
-                x0 = x1;
-                x1 = temp;
-            }
-            
-            if( WIREFRAME_TOGGLE )
-            {
-                if( y == y_min.y )
-                {
-                    // Draw horizontal line on triangle
-                    for ( int x = (int) x0; x < x1; ++x )
-                    {
-                        if( update_zbuffer(x, y, number) )
-                            renderPixel(x, y, colors[number % 10].R, colors[number % 10].G, colors[number % 10].B);
-                    }
-                }
-                else
-                {
-                    // Draw only the outside edges
-                    if( update_zbuffer(x0, y, number) )
-                        renderPixel((int)x0, y, colors[number % 10].R, colors[number % 10].G, colors[number % 10].B);
-                    if( update_zbuffer(x1, y, number) )
-                        renderPixel((int)x1, y, colors[number % 10].R, colors[number % 10].G, colors[number % 10].B);
-                }
-            }
-            else
-            {
-                // Render pixels
-                for ( int x = (int) x0; x < x1; ++x )
-                {
-                    if( update_zbuffer(x, y, number) )
-                        renderPixel(x, y, colors[number % 10].R, colors[number % 10].G, colors[number % 10].B);
-                }
-            }
-        }
-    }
-    else // Case 2 and 3: Triangle has 2 ymins or 2 ymaxs
-    {
-        // Grab second y-min/y-max
-        int p_newn = number*3;
-        for(int i = number*3; i < number*3 + 3; ++i)
-        {
-            if( ((i != min)) && ((i != max)) )
-            p_newn = i;
-        }
-        
-        Point2D p_new = points[p_newn];
-        
-        // Two possibilities in this case:
-        if( p_new.y == y_max.y)
-        {
-            // Triangle's horizontal line is on top
-            // Swap if p_new.x is greater than y_max.x
-            if( p_new.x > y_max.x )
-            {
-                Point2D temp = p_new;
-                p_new = y_max;
-                y_max = temp;
-            }
-            
-            double m_left = ( p_new.y - y_min.y ) / ( p_new.x - y_min.x );
-            double m_right = ( y_max.y - y_min.y ) / ( y_max.x - y_min.x );
-            for ( int y = (int)y_min.y; y < y_max.y; ++y)
-            {
-                // x = (1/m)*(y - b ) + x0
-                double x0 = (y - y_min.y) / m_left + y_min.x;
-                double x1 = (y - y_min.y) / m_right + y_min.x;
-                
-                // Swap x values if going in descending order
-                if( x0 > x1 )
-                {
-                    double temp = x0;
-                    x0 = x1;
-                    x1 = temp;
-                }
-                
-                if( WIREFRAME_TOGGLE )
-                {
-                    if( y == y_min.y )
-                    {
-                        // Draw horizontal line on triangle
-                        for ( int x = (int) x0; x < x1; ++x )
-                        {
-                            if( update_zbuffer(x, y, number) )
-                                renderPixel(x, y, colors[number % 10].R, colors[number % 10].G, colors[number % 10].B);
-                        }
-                    }
-                    else
-                    {
-                        // Draw only the outside edges
-                        if( update_zbuffer(x0, y, number) )
-                            renderPixel((int)x0, y, colors[number % 10].R, colors[number % 10].G, colors[number % 10].B);
-                        if( update_zbuffer(x1, y, number) )
-                            renderPixel((int)x1, y, colors[number % 10].R, colors[number % 10].G, colors[number % 10].B);
-                    }
-                }
-                else
-                {
-                    // Render pixels
-                    for ( int x = (int) x0; x < x1; ++x )
-                    {
-                        if( update_zbuffer(x, y, number) )
-                            renderPixel(x, y, colors[number % 10].R, colors[number % 10].G, colors[number % 10].B);
-                    }
-                }
-            }
-        }
-        else
-        {
-            // Triangle's horizontal line is on bottom
-            // Swap if p_new.x is greater than y_max.x
-            if( p_new.x > y_min.x )
-            {
-                Point2D temp = p_new;
-                p_new = y_min;
-                y_min = temp;
-            }
-            
-            double m_left = ( p_new.y - y_max.y ) / ( p_new.x - y_max.x);
-            double m_right = ( y_min.y - y_max.y ) / (y_min.x - y_max.x );
-            for ( int y = (int)y_min.y; y < y_max.y; ++y)
-            {
-                // x = (1/m)*(y - b ) + x0
-                double x0 = (y - y_max.y) / m_right + y_max.x;
-                double x1 = (y - y_max.y) / m_left + y_max.x;
-                
-                // Swap x values if going in descending order
-                if( x0 > x1 )
-                {
-                    double temp = x0;
-                    x0 = x1;
-                    x1 = temp;
-                }
-                
-                if( WIREFRAME_TOGGLE )
-                {
-                    if( y == y_min.y )
-                    {
-                        // Draw horizontal line on triangle
-                        for ( int x = (int) x0; x < x1; ++x )
-                        {
-                        if( update_zbuffer(x, y, number) )
-                        renderPixel(x, y, colors[number % 10].R, colors[number % 10].G, colors[number % 10].B);
-                        }
-                    }
-                    else
-                    {
-                        // Draw only the outside edges
-                        if( update_zbuffer(x0, y, number) )
-                            renderPixel((int)x0, y, colors[number % 10].R, colors[number % 10].G, colors[number % 10].B);
-                        if( update_zbuffer(x1, y, number) )
-                            renderPixel((int)x1, y, colors[number % 10].R, colors[number % 10].G, colors[number % 10].B);
-                    }
-                }
-                else
-                {
-                    // Render pixels, starting from left slope of the triangle, to the right slope.
-                    for ( int x = (int) x0; x < x1; ++x )
-                    {
-                        if( update_zbuffer(x, y, number) )
-                            renderPixel(x, y, colors[number % 10].R, colors[number % 10].G, colors[number % 10].B);
-                    }
-                }
-            }
-        }
-    }
-}
-
 void renderPixel(int x, int y, float r, float g, float b)
 {
     // Set glBegin flags
@@ -891,3 +527,6 @@ void renderPixel(int x, int y, float r, float g, float b)
     // Signal finish rendering
     glEnd();
 }
+
+
+
