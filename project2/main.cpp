@@ -25,13 +25,18 @@ const int WINDOW_HEIGHT = 800;
 #define DEPTH_INIT -10000  // This is our initial z-value
 
 // Phong Illumination Model
-#define Ka .1//.1  // Coefficients
-#define Kd .3//.7
-#define Ks .7// 1
+#define Ka .1  // Coefficients
+#define Kd .3
+#define Ks .5
 
-#define La .4//.2  // Intensities
-#define Ld .7//.8
-#define Ls .9//.1
+#define La .2  // Intensities
+#define Ld .4
+#define Ls .8
+
+#define shiny 1
+
+#define FLAT_SHADE   1
+#define SMOOTH_SHADE 0
 
 /// ------------------------- Struct/Type Definitions ---------------------///
 typedef struct clr // Holds different triangle colors
@@ -71,13 +76,17 @@ typedef struct Ray
     }
 } Ray;
 
+ 
 /// --------------------------- Global Variables -------------------------///
 vector< Point2D > points;           // Container for 2D points. Used for scan conversion
 vector< Point3D > cartesian_points; // Container of 3D points. Raw point data
 vector< Triangle > triangles;       // Container of 3 sets of 3D points, or a triangle. Used to get points array data
-Point3D lights[5]  = {Point3D( 200, 200, -5/*-.5, -.5, -.5*/ ), Point3D( 1, -5, -2 ), Point3D( .3, .5, -1), Point3D( 1, 1, -1),
-		      Point3D( 1, -1, 1) };
+Point3D lights[5]  = {Point3D( 400, 400, 1), Point3D( 300, 300, -2 ), 
+		      Point3D( 450,410, -10), Point3D( 350, 400, -5),
+		      Point3D( 200, 500, 50) };
 
+vector< Point3D > vertex_normals; // Contians vertex normal for the corresponding cartesian_points vectors
+bool flat_smooth = FLAT_SHADE;    // Toggle between Flat Shaded Rendering or Phong Smooth
 
 /// -------------------------- Function Declarations --------------------///
 // Grab all model information
@@ -138,6 +147,7 @@ int main( int argc, char** argv )
 
 
 /// -------------------------- Function Definitions -------------------///
+
 void parse_model( string file )
 {
     // Open model file
@@ -157,25 +167,47 @@ void parse_model( string file )
         model >> y;
         model >> z;
 	
-        cartesian_points.push_back( Point3D( x, y, z) );
+        cartesian_points.push_back( Point3D( x, y, z) );   // We will store the vertex here
+	vertex_normals.push_back( Point3D(0,0,0) );        // We will store the vertex normal here
     }
+
     for( int i = 0; i < num_triangles; ++i )
     {
         // Populate the triangles container with cartesian_points indices
         model >> x;
         model >> y;
         model >> z;
-        
+
+	// Get normal vector for triangle and add them to corresponding vertexes
+	Point3D a = cartesian_points[x];
+	Point3D b = cartesian_points[y];
+	Point3D c = cartesian_points[z];
+
+	// Get normal vector and add to corresponding index in vertex normals
+	Point3D vector1 = Point3D(a.x - b.x, a.y - b.y, a.z - b.z);       // Get 2 vectors from pts
+	Point3D vector2 = Point3D(a.x - c.x, a.y - c.y, a.z - c.z);
+	Point3D normal = vector1.cross( vector2 );                        // Find normal
+
+	vertex_normals[x] += normal;
+	vertex_normals[y] += normal;
+	vertex_normals[z] += normal;
+
         triangles.push_back( Triangle( x, y, z, clr(1,1,1)/*colors[ (color_index++) % 10 ]*/) );
     }
-    
+
+
+    // Normalize vectors in vertex_normals
+    for( int i = 0; i < vertex_normals.size(); ++i )
+      vertex_normals[i].normalize();
+
     // Display usage information
     cout << "============== Flat/Smooth Shaded Rendering ==============\n"
          << "                   ..Controls.. \n"
-         << " Rotate:    'right' -> RIGHT  | 'left' -> LEFT\n"
-         << " Pan:       'w'     -> UP     | 'a' -> LEFT \n"
-         << "            's'     -> DOWN   | 'd' -> RIGHT \n"
-         << " Zoom:      '-'     -> OUT    | '+' -> IN \n"
+         << " Flat Shade/Smooth Shade: -> x \n"
+         << " Rotate:    'right' -> RIGHT   | 'left' -> LEFT\n"
+         << " Pan:       'w'     -> UP      | 'a' -> LEFT \n"
+         << "            's'     -> DOWN    | 'd' -> RIGHT \n"
+         << " Zoom:      '-'     -> OUT     | '+' -> IN \n"
          << "=========================================================="
          << endl;
          
@@ -312,7 +344,7 @@ void GL_render()
 		  float sum = 0;
 	  
 		  // For all light sources
-		  for( int x = 0; x < 1; ++x )
+		  for( int x = 0; x < 5; ++x )
 		  {
 		    // We determine if there is a shadow. If so, only add ambient light
 			int shadow = pixelOn( Ray( Point3D( i, 800 - j, 0), Point3D(lights[x].x - i, lights[x].y, lights[x].z - 0) ) );
@@ -325,25 +357,41 @@ void GL_render()
 		      // L = kd * Ld * cos(theta) + ks * Ls * cos( phi ) + ka * La
 		      // cos( theta ) = N * l / (||N|| || L || ), where N = normal vector, L = light
 		    
+
   		      // First we find the normal vector of that triangle
-		      Point3D p1 = cartesian_points.at( triangles.at( which_triangle ).p1 );  // Get x, y, z
-		      Point3D p2 = cartesian_points.at( triangles.at( which_triangle ).p2 );
-		      Point3D p3 = cartesian_points.at( triangles.at( which_triangle ).p3 );
+		      Point3D normal;
+		      if( flat_smooth == FLAT_SHADE )
+		      {
+			Point3D p1 = cartesian_points.at( triangles.at( which_triangle ).p1 );  // Get x, y, z
+			Point3D p2 = cartesian_points.at( triangles.at( which_triangle ).p2 );
+			Point3D p3 = cartesian_points.at( triangles.at( which_triangle ).p3 );
 		    
-		      Point3D vector1 = Point3D(p1.x - p2.x, p1.y - p2.y, p1.z - p2.z);       // Get 2 vectors from pts
-		      Point3D vector2 = Point3D(p1.x - p3.x, p1.y - p3.y, p1.z - p3.z);
+			Point3D vector1 = Point3D(p1.x - p2.x, p1.y - p2.y, p1.z - p2.z);       // Get 2 vectors from pts
+			Point3D vector2 = Point3D(p1.x - p3.x, p1.y - p3.y, p1.z - p3.z);
 		    
-		      Point3D normal = vector1.cross( vector2 );                        // Find normal from cross
+			normal = vector1.cross( vector2 );                        // Find normal from 
+		      }
+		      else if( flat_smooth == SMOOTH_SHADE )
+		      {
+			Point3D p1 = vertex_normals.at( triangles.at( which_triangle ).p1 );  // Get x, y, z
+			Point3D p2 = vertex_normals.at( triangles.at( which_triangle ).p2 );
+			Point3D p3 = vertex_normals.at( triangles.at( which_triangle ).p3 );
+			
+			Point3D vector1 = Point3D(p1.x - p2.x, p1.y - p2.y, p1.z - p2.z);       // Get 2 vectors from pts
+			Point3D vector2 = Point3D(p1.x - p3.x, p1.y - p3.y, p1.z - p3.z);
 		    
+			normal = vector1.cross( vector2 );                        // Find normal from 
+		      }
+
 		      // Using the normal, we calculate the diffuse component as Kd * Ld * ( N * l )/(|N||L|)
 		      diffuse = (normal.dot( lights[x] ) / ( normal.magnitude() * lights[x].magnitude() ))*Kd*Ld;
 		    
 		      // We then find our specular component using the reflected vector from the light source
 		      Point3D reflector = normal * 2 * ( normal.dot( (lights[x] / lights[x].magnitude()) ) ) - lights[x];
 		      specular = (reflector.dot( viewer ) / ( reflector.magnitude() * viewer.magnitude() ))*Ks*Ls;
-
+		      specular = pow( specular, shiny );
 		      // Finally, the ambient component
-		      ambient = Ka * La;
+		      ambient = Ka * La; 
 
 		    }
 		    else
@@ -351,15 +399,17 @@ void GL_render()
 		      // Finally, the ambient component
 		      ambient = Ka * La;
 		    }
-		      // Find the total illumination
-		      sum += diffuse + specular + ambient;
-		    
-		  }
-	  
-	  	// After looping through all light sources, we then render the pixel
-	    clr colour = triangles.at( which_triangle ).Color;	  	  
-	    renderPixel( i, 800 - j,/*colour.R**/sum, /*colour.G**/sum, /*colour.B**/sum);
 
+		    
+		    // Find the total illumination
+		    sum += diffuse + specular + ambient;
+		      
+		  }
+		  
+		  // After looping through all light sources, we then render the pixel
+		  clr colour = triangles.at( which_triangle ).Color;	  	  
+		  renderPixel( i, 800 - j, colour.R*sum, 1*sum, colour.B*sum);
+		  
 		}
       
       }
@@ -423,7 +473,10 @@ void GL_key( unsigned char key, int x, int y )
         pan_model( PAN_UP_DOWN, -50 );
         //cout << "Panning down!" << endl;
     }
-    
+    else if( key == 'x' )
+    {
+      flat_smooth = (flat_smooth == FLAT_SHADE ? SMOOTH_SHADE : FLAT_SHADE );
+    }
     // Refresh screen
     glutPostRedisplay();
     return;
